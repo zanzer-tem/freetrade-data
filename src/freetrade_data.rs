@@ -70,7 +70,7 @@ pub mod freetrade_data {
         }
     }
 
-    pub struct Ticker {
+    pub struct Symbol {
         pub symbol: String,
         pub name: String,
         pub long_name: String
@@ -79,7 +79,7 @@ pub mod freetrade_data {
     
 
     pub struct SymbolData {
-        pub ticker: Ticker,
+        pub symbol: Symbol,
         pub sector: String,
         pub exchange: Exchange,
         pub isa_eligible: bool,
@@ -87,7 +87,7 @@ pub mod freetrade_data {
 
     impl fmt::Display for SymbolData {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "Ticker: {} {}\nExchange: {:?}\n", self.ticker.symbol, self.ticker.name, self.exchange);
+            write!(f, "Ticker: {} {}\nExchange: {:?}\n", self.symbol.symbol, self.symbol.name, self.exchange);
             Ok(())
         }
     }
@@ -105,7 +105,7 @@ pub mod freetrade_data {
                 data.insert(
                     row.symbol.clone(),
                     SymbolData {
-                        ticker: Ticker {
+                        symbol: Symbol {
                             symbol: row.symbol.clone(),
                             name: row.title.clone(),
                             long_name: row.long_title.clone()
@@ -127,37 +127,45 @@ pub mod freetrade_data {
             data
         }
 
-        pub fn symbol(&self, symbol: &str) -> &SymbolData {
-            self.data.get(symbol).expect("Unable to find symbol")
+        pub fn symbol(&self, symbol: &str) -> Option<&SymbolData> {
+            self.data.get(symbol)
         }
 
-        pub fn symbols(&self) -> Vec<String> {
+        pub fn symbols(&self) -> Vec<&SymbolData> {
             self.data
-                .iter()
-                .map(|(_, value)| String::from(&value.ticker.symbol))
-                .collect()
+            .iter()
+            .map(|(_, symbol_data)| symbol_data)
+            .collect()
         }
 
-        pub fn symbols_in_exchange(&self, exchange: Exchange) -> Vec<String> {
+        pub fn symbols_in_exchange(&self, exchange: Exchange) -> Vec<&SymbolData> {
             self.data
-                .iter()
-                .filter(|(_, value)| { 
-                    println!("Filtering!! {:?}, {}, {}", exchange, &value.exchange, matches!(&value.exchange, exchange));
-                    matches!(&value.exchange, exchange)
-                })
-                .map(|(_, value)| String::from(&value.ticker.symbol))
-                .collect()
+            .iter()
+            .filter(|(_, value)| { 
+                matches!(&value.exchange, exchange)
+            })
+            .map(|(_, symbol_data)| symbol_data)
+            .collect()
         }
 
-        pub fn contains(&self, symbol: &str, isa_eligible: bool) -> bool {
+        pub fn isa_eligible_symbols(&self) -> Vec<&SymbolData> {
+            self.data
+            .iter()
+            .filter(|(_, value)| { 
+                value.isa_eligible
+            })
+            .map(|(_, symbol_data)| symbol_data)
+            .collect()
+        }
+
+        pub fn is_isa_eligible(&self, symbol: &str) -> bool {
             let symbol_uppercase = symbol.to_uppercase();
             self.data.contains_key(symbol_uppercase.as_str())
-                && (isa_eligible
-                    && self
+                &&  self
                         .data
                         .get(symbol_uppercase.as_str())
                         .unwrap()
-                        .isa_eligible)
+                        .isa_eligible
         }
 
         pub fn new() -> FreetradeData {
@@ -176,18 +184,18 @@ mod tests {
     #[test]
     fn present_and_eligible_works() {
         let freetrade_data = FreetradeData::new();
-        assert_eq!(freetrade_data.contains("AAPL", true), true);
+        assert_eq!(freetrade_data.is_isa_eligible("AAPL"), true);
     }
 
     #[test]
     fn present_and_not_eligible_works() {
         let freetrade_data = FreetradeData::new();
-        assert_eq!(freetrade_data.contains("WALB", true), false);
+        assert_eq!(freetrade_data.is_isa_eligible("WALB"), false);
     }
 
     #[test]
     fn not_present_and_eligible_works() {
         let freetrade_data = FreetradeData::new();
-        assert_eq!(freetrade_data.contains("ZZZZZZ", true), false);
+        assert_eq!(freetrade_data.is_isa_eligible("ZZZZZZ"), false);
     }
 }
