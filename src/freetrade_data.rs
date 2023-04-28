@@ -2,20 +2,24 @@ mod freetrade_data_loader {
     use serde::{Deserialize, Serialize};
     use std::env;
 
-    const FREETRADE_DATA_ENDPOINT:&str = "https://sheets.googleapis.com/v4/spreadsheets/14Ep-CmoqWxrMU8HshxthRcdRW8IsXvh3n2-ZHVCzqzQ/values/Freetrade%20Universe!E:I?key=";
+    const FREETRADE_DATA_ENDPOINT:&str = "https://sheets.googleapis.com/v4/spreadsheets/14Ep-CmoqWxrMU8HshxthRcdRW8IsXvh3n2-ZHVCzqzQ/values/Freetrade%20Universe!A:I?key=";
     // Deserializer for bool
 
     #[derive(Serialize, Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
     pub struct ApiSymbolData {
+        pub title: String,
+        pub long_title: String,
+        pub subtitle: String,
+        pub currency: String,
         pub isa_eligible: String,
         #[serde(skip_serializing)]
         _sipp_eligible: String,
         #[serde(skip_serializing)]
         _isin: String,
-        #[serde(skip_serializing)]
-        _mic: String,
+        pub mic: String,
         pub symbol: String,
+
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -50,14 +54,40 @@ pub mod freetrade_data {
     use std::collections::HashMap;
     use std::fmt;
 
-    struct SymbolData {
-        symbol: String,
-        isa_eligible: bool,
+    
+    #[derive(Debug, Copy, Clone)]    
+    pub enum Exchange{
+        NYSE,
+        NASDAQ,
+        LSE,
+        UNKNOWN
+    }
+
+    impl fmt::Display for Exchange {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{:?}\n", self);
+            Ok(())
+        }
+    }
+
+    pub struct Ticker {
+        pub symbol: String,
+        pub name: String,
+        pub long_name: String
+    }
+
+    
+
+    pub struct SymbolData {
+        pub ticker: Ticker,
+        pub sector: String,
+        pub exchange: Exchange,
+        pub isa_eligible: bool,
     }
 
     impl fmt::Display for SymbolData {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "{} {}", self.symbol, self.isa_eligible);
+            write!(f, "Ticker: {} {}\nExchange: {:?}\n", self.ticker.symbol, self.ticker.name, self.exchange);
             Ok(())
         }
     }
@@ -75,21 +105,47 @@ pub mod freetrade_data {
                 data.insert(
                     row.symbol.clone(),
                     SymbolData {
-                        symbol: row.symbol.clone(),
+                        ticker: Ticker {
+                            symbol: row.symbol.clone(),
+                            name: row.title.clone(),
+                            long_name: row.long_title.clone()
+                        },
                         isa_eligible: match row.isa_eligible == "TRUE" {
                             true => true,
                             false => false,
                         },
+                        sector: row.subtitle.clone(),
+                        exchange: match row.mic.as_str() {
+                            "XNAS" => Exchange::NASDAQ,
+                            "XNYS" => Exchange::NYSE,
+                            "XLON" => Exchange::LSE,
+                            _ => Exchange::UNKNOWN
+                        }
                     },
                 );
             }
             data
         }
 
+        pub fn symbol(&self, symbol: &str) -> &SymbolData {
+            self.data.get(symbol).expect("Unable to find symbol")
+        }
+
         pub fn symbols(&self) -> Vec<String> {
             self.data
                 .iter()
-                .map(|(_, value)| String::from(&value.symbol))
+                .map(|(_, value)| String::from(&value.ticker.symbol))
+                .collect()
+        }
+
+        pub fn symbols_in_exchange(&self, exchange: Exchange) -> Vec<String> {
+            self.data
+                .iter()
+                .filter(|(_, value)| { 
+                    println!("Filtering!! {:?}, {}, {}", exchange, &value.exchange, matches!(&value.exchange, exchange));
+                    matches!(&value.exchange, exchange)
+                })
+                .map(|(_, value)| String::from(&value.ticker.symbol))
                 .collect()
         }
 

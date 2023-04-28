@@ -6,6 +6,9 @@ use std::fs::File;
 use std::io::{ BufWriter, BufReader, BufRead};
 use std::io::Write;
 use chrono::prelude::*;
+use freetrade_data::freetrade_data::*;
+
+
 #[derive(Debug)]
 enum Mode {
     INTERACTIVE,
@@ -21,11 +24,16 @@ fn main() {
     
     println!("{}", style("Freetrade CLI").magenta());
     println!("{} {:?}", style("Mode: ").cyan(), mode);
+    let freetrade_data: FreetradeData = FreetradeData::new();
+    let total_symbols: usize = freetrade_data.symbols().len();
+    println!("{} {}", style("Total symbols found: ").cyan(), total_symbols);
     println!("{}", style("'q' to quit").cyan());
     
-    let freetrade_data = FreetradeData::new();
+    
+    
     match mode {
-        Mode::INTERACTIVE => prompt_for_symbols(&freetrade_data) , 
+        //Mode::INTERACTIVE => prompt_for_symbols(&freetrade_data) , 
+        Mode::INTERACTIVE => interactive_session(&freetrade_data) , 
         Mode::AUTO => read_symbols_from_file(&freetrade_data, &args[1]).unwrap()
     }
 }
@@ -50,6 +58,44 @@ fn read_symbols_from_file(freetrade_data: &FreetradeData, filename: &str) -> Res
     Ok(())
 }
 
+fn interactive_session(freetrade_data: &FreetradeData) {
+    loop {
+        println!("{}", "Tool:\n1: Symbol Lookup\n2: Exchange Listings\n");
+        let choice: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("Option")
+                .interact_text()
+                .unwrap();
+
+        match choice.as_str() {
+            "1" => prompt_for_symbols(freetrade_data),
+            "2" => prompt_for_exchange(freetrade_data),
+            "q" => break,
+            _=> interactive_session(freetrade_data)
+        }
+    }
+}
+
+fn prompt_for_exchange(freetrade_data: &FreetradeData) {
+    let choice: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("Exchange (NYSE, NASDAQ, LSE)")
+                .interact_text()
+                .unwrap();
+    let exchange = match choice.to_uppercase().as_str() {
+        "NASDAQ" => Exchange::NASDAQ,
+        "NYSE" => Exchange::NYSE,
+        "LSE" => Exchange::LSE,
+        _=> Exchange::UNKNOWN
+    };
+
+    if matches!(exchange, Exchange::UNKNOWN) {
+        println!("{}", style("Unknown Exchange").magenta());
+        prompt_for_exchange(freetrade_data);
+    } else {
+        let exchange_symbols: Vec<String> = freetrade_data.symbols_in_exchange(exchange);
+        println!("Symbols in {} ({})", style(&exchange).magenta(), style(&exchange_symbols.len()).magenta());
+    }
+}
+
 fn prompt_for_symbols(freetrade_data: &FreetradeData){
     loop {
         let symbol: String = Input::with_theme(&ColorfulTheme::default())
@@ -63,6 +109,11 @@ fn prompt_for_symbols(freetrade_data: &FreetradeData){
 
         let available = freetrade_data.contains(&symbol, true);
 
-        println!("{}", style(available).cyan());
+        if available {
+            let symbol:&SymbolData = freetrade_data.symbol(&symbol);
+            println!("{} {} {}\n{} {}", style("Ticker: ").cyan(),style(&symbol.ticker.symbol).green(), style(&symbol.ticker.name).magenta(), style("Exchange: ").cyan(),style(&symbol.exchange).magenta());
+        } else {
+            println!("{}", style("Symbol unavailable").cyan());
+        }
     }
 }
