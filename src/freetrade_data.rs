@@ -4,7 +4,7 @@ pub mod freetrade_data {
     use std::env;
     use serde::{de::{self, IntoDeserializer},Deserialize};
     use std::fmt;
-    use std::error::Error;
+
     
     const FREETRADE_DATA_ENDPOINT:&str = "https://sheets.googleapis.com/v4/spreadsheets/14Ep-CmoqWxrMU8HshxthRcdRW8IsXvh3n2-ZHVCzqzQ/values/Freetrade%20Universe!A:K?key=";
 
@@ -65,7 +65,7 @@ pub mod freetrade_data {
         }
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Eq, PartialEq, Ord, PartialOrd)]
     pub enum Currency {
         #[serde(rename = "eur")]
         EUR,
@@ -103,7 +103,7 @@ pub mod freetrade_data {
         }
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug,Eq, Ord, PartialEq, PartialOrd)]
     #[serde(rename_all = "camelCase")]
     pub struct SymbolData {
         pub title: String,
