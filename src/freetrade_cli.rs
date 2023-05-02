@@ -15,6 +15,8 @@ enum Mode {
     AUTO
 }
 
+
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mode:Mode = match args.len() {
@@ -32,7 +34,7 @@ fn main() {
     
     
     match mode {
-        //Mode::INTERACTIVE => prompt_for_symbols(&freetrade_data) , 
+
         Mode::INTERACTIVE => interactive_session(&freetrade_data) , 
         Mode::AUTO => read_symbols_from_file(&freetrade_data, &args[1]).unwrap()
     }
@@ -46,13 +48,13 @@ fn read_symbols_from_file(freetrade_data: &FreetradeData, filename: &str) -> Res
     let mut buf_writer = BufWriter::new(output_file);
     let buf_reader = BufReader::new(file);
     for line in buf_reader.lines().skip(1) {
-        let data_row = line.unwrap();
+        let data_row = line?;
         let symbol_position = data_row.find(",").unwrap();
         let symbol = &data_row[0..symbol_position];
-        let available = freetrade_data.is_isa_eligible(&symbol);
-        if available {
-            println!("{}", style(symbol).magenta());
-            writeln!(buf_writer, "{},", symbol).expect("unable to write");
+        let matches = freetrade_data.isa_eligible_symbol(symbol);
+        for s in matches {
+            println!("{}", style(&s.symbol).magenta());
+            writeln!(buf_writer, "{},", s.symbol).expect("unable to write");
         }
     }
     Ok(())
@@ -60,7 +62,7 @@ fn read_symbols_from_file(freetrade_data: &FreetradeData, filename: &str) -> Res
 
 fn interactive_session(freetrade_data: &FreetradeData) {
     loop {
-        println!("{}", "Tool:\n1: Symbol Lookup\n2: Exchange Listings\n");
+        println!("{}", "Tool:\n1: Symbol Lookup\n");
         let choice: String = Input::with_theme(&ColorfulTheme::default())
                 .with_prompt("Option")
                 .interact_text()
@@ -68,31 +70,9 @@ fn interactive_session(freetrade_data: &FreetradeData) {
 
         match choice.as_str() {
             "1" => prompt_for_symbols(freetrade_data),
-            "2" => prompt_for_exchange(freetrade_data),
             "q" => break,
             _=> interactive_session(freetrade_data)
         }
-    }
-}
-
-fn prompt_for_exchange(freetrade_data: &FreetradeData) {
-    let choice: String = Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("Exchange (NYSE, NASDAQ, LSE)")
-                .interact_text()
-                .unwrap();
-    let exchange = match choice.to_uppercase().as_str() {
-        "NASDAQ" => Exchange::NASDAQ,
-        "NYSE" => Exchange::NYSE,
-        "LSE" => Exchange::LSE,
-        _=> Exchange::UNKNOWN
-    };
-
-    if matches!(exchange, Exchange::UNKNOWN) {
-        println!("{}", style("Unknown Exchange").magenta());
-        prompt_for_exchange(freetrade_data);
-    } else {
-        let exchange_symbols: Vec<&SymbolData> = freetrade_data.symbols_in_exchange(exchange);
-        println!("Symbols in {} ({})", style(&exchange).magenta(), style(&exchange_symbols.len()).magenta());
     }
 }
 
@@ -107,13 +87,13 @@ fn prompt_for_symbols(freetrade_data: &FreetradeData){
             break;
         }
 
-        let available = freetrade_data.is_isa_eligible(&symbol);
+        let matches = freetrade_data.isa_eligible_symbol(&symbol);
 
-        if available {
-            let symbol:&SymbolData = freetrade_data.symbol(&symbol).unwrap();
-            println!("{} {} {}\n{} {}", style("Ticker: ").cyan(),style(&symbol.symbol.symbol).green(), style(&symbol.symbol.name).magenta(), style("Exchange: ").cyan(),style(&symbol.exchange).magenta());
-        } else {
-            println!("{}", style("Symbol unavailable").cyan());
-        }
+        match matches.len() {
+            0 => println!("{}", style("Symbol unavailable").cyan()),
+            _ => for m in matches  {
+                    println!("{} {} {}\n{} {}", style("Ticker: ").cyan(),style(&m.symbol).green(), style(&m.title).magenta(), style("Exchange: ").cyan(),style(&m.mic).magenta());
+                }
+        };
     }
 }
