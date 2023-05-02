@@ -19,6 +19,17 @@ pub mod freetrade_data {
     }
     
     impl Market {
+        
+        pub fn as_symbol(&self) -> String {
+            match self {
+                Self::USD => String::from("$"),
+                Self::GBP => String::from("£"),
+                Self::EUR => String::from("€"),
+                Self::SEK => String::from("kr"),
+                _ => String::from("$")
+            }
+        }
+
         pub fn from_symbol(symbol: &str) -> Result<Market, ()> {
             let exchange_symbol = symbol.chars().nth(0);
             
